@@ -1,15 +1,29 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ['GLOG_minloglevel'] = '2'
 import csv
 import copy
 import argparse
 import itertools
 from collections import Counter
 from collections import deque
+import time
+import contextlib
+import sys
 
 import cv2 as cv
 import numpy as np
 import mediapipe as mp
+
+
+from spotify_functions import connect_spotify, current_song, change_playback, change_volume
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from utils import CvFpsCalc
 from model import KeyPointClassifier
@@ -46,6 +60,17 @@ def main():
     cap_width = args.width
     cap_height = args.height
 
+    # Set up Spotify with Spotipy
+    SPOTIPY_CLIENT_ID = os.getenv('SPOTIPY_CLIENT_ID')
+    SPOTIPY_CLIENT_SECRET = os.getenv('SPOTIPY_CLIENT_SECRET')
+    SPOTIPY_REDIRECT_URI = os.getenv('SPOTIPY_REDIRECT_URI')
+    
+    SCOPE = 'user-modify-playback-state user-read-playback-state'
+    sp = connect_spotify(SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET, SPOTIPY_REDIRECT_URI, SCOPE)
+
+    # Get current song w/ artists
+    song, artists = current_song(sp)
+
     use_static_image_mode = args.use_static_image_mode
     min_detection_confidence = args.min_detection_confidence
     min_tracking_confidence = args.min_tracking_confidence
@@ -58,13 +83,14 @@ def main():
     cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
 
     # Model load #############################################################
-    mp_hands = mp.solutions.hands
-    hands = mp_hands.Hands(
-        static_image_mode=use_static_image_mode,
-        max_num_hands=2,
-        min_detection_confidence=min_detection_confidence,
-        min_tracking_confidence=min_tracking_confidence,
-    )
+    with open(os.devnull, 'w') as fnull, contextlib.redirect_stderr(fnull):
+        mp_hands = mp.solutions.hands
+        hands = mp_hands.Hands(
+            static_image_mode=use_static_image_mode,
+            max_num_hands=2,
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence,
+        )
 
     keypoint_classifier = KeyPointClassifier()
 
@@ -95,11 +121,20 @@ def main():
     # Finger gesture history ################################################
     finger_gesture_history = deque(maxlen=history_length)
 
-    #  ########################################################################
+    #  Default mode
     mode = 0
+
+    # Gesture pause time (don't register gestures too fast for commands)
+    last_pause_time = 0
+    pause_cooldown = 0.8
+    gesture_hold = 0
+    prev_gesture = -99
 
     while True:
         fps = cvFpsCalc.get()
+
+        # Get current time
+        current_time = time.time()
 
         # Process Key (ESC: end) #################################################
         key = cv.waitKey(10)
@@ -141,10 +176,37 @@ def main():
 
                 # Hand sign classification
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
-                if hand_sign_id == 'N/A':  # Point gesture
-                    point_history.append(landmark_list[8])
+
+                # Keep track of gesture hold (prevent accidental gestures)
+                if hand_sign_id == prev_gesture:
+                    gesture_hold += 1
+                    # print('Holding Gesture...', gesture_hold)
                 else:
-                    point_history.append([0, 0])
+                    gesture_hold = 0
+                    prev_gesture = hand_sign_id
+                    # print('New Gesture...', prev_gesture)
+
+                # print(keypoint_classifier_labels[hand_sign_id])
+
+                # Register gestures if held for 3+ frames
+                if current_time - last_pause_time > pause_cooldown and gesture_hold > 12:
+
+                    # Increase Volume if Open hand
+                    if hand_sign_id == 0 or hand_sign_id == 1:
+                        volume = change_volume(sp,1) if hand_sign_id == 0 else change_volume(sp,0)
+                        print(volume)
+
+                    # Pause/Play music if pointing (2)
+                    if hand_sign_id == 2:  # Point gesture
+                        # point_history.append(landmark_list[8])
+                        # Only register gesture if holding for 5 frames and off cooldown
+                        # if current_time - last_pause_time > pause_cooldown and gesture_hold > 5:
+                        song_status = change_playback(sp)
+                        print('Song is now', song_status)
+                    # else:
+                    last_pause_time = current_time
+                    gesture_hold = 0
+                point_history.append([0, 0])
 
                 # Finger gesture classification
                 finger_gesture_id = 0
@@ -171,7 +233,7 @@ def main():
         else:
             point_history.append([0, 0])
 
-        debug_image = draw_point_history(debug_image, point_history)
+        # debug_image = draw_point_history(debug_image, point_history)
         debug_image = draw_info(debug_image, fps, mode, number)
 
         # Screen reflection #############################################################
