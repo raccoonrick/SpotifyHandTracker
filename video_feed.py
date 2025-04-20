@@ -8,11 +8,8 @@ import csv
 import copy
 import argparse
 import itertools
-from collections import Counter
-from collections import deque
 import time
 import contextlib
-import sys
 
 import cv2 as cv
 import numpy as np
@@ -27,8 +24,6 @@ load_dotenv()
 
 from utils import CvFpsCalc
 from model import KeyPointClassifier
-from model import PointHistoryClassifier
-
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -52,28 +47,47 @@ def get_args():
     return args
 
 
-def main():
+def start_video(spotify_credentials=None):
     # Argument parsing #################################################################
-    args = get_args()
+    # args = get_args()
 
-    cap_device = args.device
-    cap_width = args.width
-    cap_height = args.height
+    # cap_device = args.device
+    # cap_width = args.width
+    # cap_height = args.height
+    cap_device = 0
+    cap_width = 960
+    cap_height = 540
 
-    # Set up Spotify with Spotipy
-    SPOTIPY_CLIENT_ID = os.getenv('SPOTIPY_CLIENT_ID')
-    SPOTIPY_CLIENT_SECRET = os.getenv('SPOTIPY_CLIENT_SECRET')
-    SPOTIPY_REDIRECT_URI = os.getenv('SPOTIPY_REDIRECT_URI')
-    
-    SCOPE = 'user-modify-playback-state user-read-playback-state'
-    sp = connect_spotify(SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET, SPOTIPY_REDIRECT_URI, SCOPE)
+    # Set up Spotify with Spotipy (with error handling)
+    sp = None
+    if spotify_credentials:
+        try:
+            SPOTIPY_CLIENT_ID = spotify_credentials.get('client_id', '')
+            SPOTIPY_CLIENT_SECRET = spotify_credentials.get('client_secret', '')
+            SPOTIPY_REDIRECT_URI = spotify_credentials.get('redirect_uri', '')
+            
+            SCOPE = 'user-modify-playback-state user-read-playback-state'
+            sp = connect_spotify(SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET, SPOTIPY_REDIRECT_URI, SCOPE)
+        except Exception as e:
+            print(f"Spotify connection error: {e}")
+    else:
+        print("No Spotify credentials provided")
+        # try:
+        #     SPOTIPY_CLIENT_ID = os.getenv('SPOTIPY_CLIENT_ID')
+        #     SPOTIPY_CLIENT_SECRET = os.getenv('SPOTIPY_CLIENT_SECRET')
+        #     SPOTIPY_REDIRECT_URI = os.getenv('SPOTIPY_REDIRECT_URI')
+            
+        #     SCOPE = 'user-modify-playback-state user-read-playback-state'
+        #     sp = connect_spotify(SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET, SPOTIPY_REDIRECT_URI, SCOPE)
+        # except Exception as e:
+        #     print(f"Spotify connection error: {e}")
 
-    # Get current song w/ artists
-    song, artists = current_song(sp)
-
-    use_static_image_mode = args.use_static_image_mode
-    min_detection_confidence = args.min_detection_confidence
-    min_tracking_confidence = args.min_tracking_confidence
+    # use_static_image_mode = args.use_static_image_mode
+    # min_detection_confidence = args.min_detection_confidence
+    # min_tracking_confidence = args.min_tracking_confidence
+    use_static_image_mode = True
+    min_detection_confidence = 0.7
+    min_tracking_confidence = 0.5
 
     use_brect = True
 
@@ -81,6 +95,11 @@ def main():
     cap = cv.VideoCapture(cap_device,cv.CAP_DSHOW)
     cap.set(cv.CAP_PROP_FRAME_WIDTH, cap_width)
     cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
+
+    # Verify camera is opened
+    if not cap.isOpened():
+        print("Error: Could not open camera.")
+        return
 
     # Model load #############################################################
     with open(os.devnull, 'w') as fnull, contextlib.redirect_stderr(fnull):
@@ -94,8 +113,6 @@ def main():
 
     keypoint_classifier = KeyPointClassifier()
 
-    point_history_classifier = PointHistoryClassifier()
-
     # Read labels ###########################################################
     with open('model/keypoint_classifier/keypoint_classifier_label.csv',
               encoding='utf-8-sig') as f:
@@ -103,23 +120,9 @@ def main():
         keypoint_classifier_labels = [
             row[0] for row in keypoint_classifier_labels
         ]
-    with open(
-            'model/point_history_classifier/point_history_classifier_label.csv',
-            encoding='utf-8-sig') as f:
-        point_history_classifier_labels = csv.reader(f)
-        point_history_classifier_labels = [
-            row[0] for row in point_history_classifier_labels
-        ]
 
     # FPS Measurement ########################################################
     cvFpsCalc = CvFpsCalc(buffer_len=10)
-
-    # Coordinate history #################################################################
-    history_length = 16
-    point_history = deque(maxlen=history_length)
-
-    # Finger gesture history ################################################
-    finger_gesture_history = deque(maxlen=history_length)
 
     #  Default mode
     mode = 0
@@ -130,117 +133,106 @@ def main():
     gesture_hold = 0
     prev_gesture = -99
 
-    while True:
-        fps = cvFpsCalc.get()
+    try:
+        while True:
+            fps = cvFpsCalc.get()
 
-        # Get current time
-        current_time = time.time()
+            # Get current time
+            current_time = time.time()
 
-        # Process Key (ESC: end) #################################################
-        key = cv.waitKey(10)
-        if key == 27:  # ESC
-            break
-        number, mode = select_mode(key, mode)
+            # Process Key (ESC: end) #################################################
+            key = cv.waitKey(10)
+            if key == 27:  # ESC
+                break
+            number, mode = select_mode(key, mode)
 
-        # Camera capture #####################################################
-        ret, image = cap.read()
-        if not ret:
-            break
-        image = cv.flip(image, 1)  # Mirror display
-        debug_image = copy.deepcopy(image)
+            # Camera capture #####################################################
+            ret, image = cap.read()
+            if not ret:
+                break
+            image = cv.flip(image, 1)  # Mirror display
+            debug_image = copy.deepcopy(image)
 
-        # Detection implementation #############################################################
-        image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+            # Detection implementation #############################################################
+            image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
 
-        image.flags.writeable = False
-        results = hands.process(image)
-        image.flags.writeable = True
+            image.flags.writeable = False
+            results = hands.process(image)
+            image.flags.writeable = True
 
-        #  ####################################################################
-        if results.multi_hand_landmarks is not None:
-            for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
-                                                  results.multi_handedness):
-                # Bounding box calculation
-                brect = calc_bounding_rect(debug_image, hand_landmarks)
-                # Landmark calculation
-                landmark_list = calc_landmark_list(debug_image, hand_landmarks)
+            #  ####################################################################
+            if results.multi_hand_landmarks is not None:
+                for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
+                                                      results.multi_handedness):
+                    # Bounding box calculation
+                    brect = calc_bounding_rect(debug_image, hand_landmarks)
+                    # Landmark calculation
+                    landmark_list = calc_landmark_list(debug_image, hand_landmarks)
 
-                # Conversion to relative coordinates / normalized coordinates
-                pre_processed_landmark_list = pre_process_landmark(
-                    landmark_list)
-                pre_processed_point_history_list = pre_process_point_history(
-                    debug_image, point_history)
-                # Write to the dataset file
-                logging_csv(number, mode, pre_processed_landmark_list,
-                            pre_processed_point_history_list)
+                    # Conversion to relative coordinates / normalized coordinates
+                    pre_processed_landmark_list = pre_process_landmark(
+                        landmark_list)
+                    # Write to the dataset file
+                    logging_csv(number, mode, pre_processed_landmark_list)
 
-                # Hand sign classification
-                hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
+                    # Hand sign classification
+                    hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
 
-                # Keep track of gesture hold (prevent accidental gestures)
-                if hand_sign_id == prev_gesture:
-                    gesture_hold += 1
-                    # print('Holding Gesture...', gesture_hold)
-                else:
-                    gesture_hold = 0
-                    prev_gesture = hand_sign_id
-                    # print('New Gesture...', prev_gesture)
+                    # Keep track of gesture hold (prevent accidental gestures)
+                    if hand_sign_id == prev_gesture:
+                        gesture_hold += 1
+                    else:
+                        gesture_hold = 0
+                        prev_gesture = hand_sign_id
 
-                # print(keypoint_classifier_labels[hand_sign_id])
+                    # Register gestures if held for 3+ frames
+                    if current_time - last_pause_time > pause_cooldown and gesture_hold > 12:
+                        # Only attempt Spotify actions if connection was successful
+                        if sp is not None:
+                            # Increase Volume if Open hand
+                            if hand_sign_id == 0 or hand_sign_id == 1:
+                                try:
+                                    volume = change_volume(sp,1) if hand_sign_id == 0 else change_volume(sp,0)
+                                    print(volume)
+                                except Exception as e:
+                                    print(f"Volume change error: {e}")
 
-                # Register gestures if held for 3+ frames
-                if current_time - last_pause_time > pause_cooldown and gesture_hold > 12:
+                            # Pause/Play music if pointing (2)
+                            if hand_sign_id == 2:  # Point gesture
+                                try:
+                                    song_status = change_playback(sp)
+                                    print('Song is now', song_status)
+                                except Exception as e:
+                                    print(f"Playback change error: {e}")
 
-                    # Increase Volume if Open hand
-                    if hand_sign_id == 0 or hand_sign_id == 1:
-                        volume = change_volume(sp,1) if hand_sign_id == 0 else change_volume(sp,0)
-                        print(volume)
+                        last_pause_time = current_time
+                        gesture_hold = 0
 
-                    # Pause/Play music if pointing (2)
-                    if hand_sign_id == 2:  # Point gesture
-                        # point_history.append(landmark_list[8])
-                        # Only register gesture if holding for 5 frames and off cooldown
-                        # if current_time - last_pause_time > pause_cooldown and gesture_hold > 5:
-                        song_status = change_playback(sp)
-                        print('Song is now', song_status)
-                    # else:
-                    last_pause_time = current_time
-                    gesture_hold = 0
-                point_history.append([0, 0])
+                    # Drawing part
+                    debug_image = draw_bounding_rect(use_brect, debug_image, brect)
+                    debug_image = draw_landmarks(debug_image, landmark_list)
+                    debug_image = draw_info_text(
+                        debug_image,
+                        brect,
+                        handedness,
+                        keypoint_classifier_labels[hand_sign_id],
+                        "",
+                    )
 
-                # Finger gesture classification
-                finger_gesture_id = 0
-                point_history_len = len(pre_processed_point_history_list)
-                if point_history_len == (history_length * 2):
-                    finger_gesture_id = point_history_classifier(
-                        pre_processed_point_history_list)
+            debug_image = draw_info(debug_image, fps, mode, number)
 
-                # Calculates the gesture IDs in the latest detection
-                finger_gesture_history.append(finger_gesture_id)
-                most_common_fg_id = Counter(
-                    finger_gesture_history).most_common()
+            # Display the image
+            # cv.imshow('Hand Gesture Recognition', debug_image)
 
-                # Drawing part
-                debug_image = draw_bounding_rect(use_brect, debug_image, brect)
-                debug_image = draw_landmarks(debug_image, landmark_list)
-                debug_image = draw_info_text(
-                    debug_image,
-                    brect,
-                    handedness,
-                    keypoint_classifier_labels[hand_sign_id],
-                    point_history_classifier_labels[most_common_fg_id[0][0]],
-                )
-        else:
-            point_history.append([0, 0])
+            # Encode the frame for web streaming
+            ret, buffer = cv.imencode('.jpg', debug_image)
+            frame = buffer.tobytes()
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
-        # debug_image = draw_point_history(debug_image, point_history)
-        debug_image = draw_info(debug_image, fps, mode, number)
-
-        # Screen reflection #############################################################
-        cv.imshow('Hand Gesture Recognition', debug_image)
-
-    cap.release()
-    cv.destroyAllWindows()
+    finally:
+        cap.release()
+        cv.destroyAllWindows()
 
 
 def select_mode(key, mode):
@@ -317,30 +309,7 @@ def pre_process_landmark(landmark_list):
     return temp_landmark_list
 
 
-def pre_process_point_history(image, point_history):
-    image_width, image_height = image.shape[1], image.shape[0]
-
-    temp_point_history = copy.deepcopy(point_history)
-
-    # Convert to relative coordinates
-    base_x, base_y = 0, 0
-    for index, point in enumerate(temp_point_history):
-        if index == 0:
-            base_x, base_y = point[0], point[1]
-
-        temp_point_history[index][0] = (temp_point_history[index][0] -
-                                        base_x) / image_width
-        temp_point_history[index][1] = (temp_point_history[index][1] -
-                                        base_y) / image_height
-
-    # Convert to a one-dimensional list
-    temp_point_history = list(
-        itertools.chain.from_iterable(temp_point_history))
-
-    return temp_point_history
-
-
-def logging_csv(number, mode, landmark_list, point_history_list):
+def logging_csv(number, mode, landmark_list):
     if mode == 0:
         pass
     if mode == 1 and (0 <= number <= 9):
@@ -348,11 +317,6 @@ def logging_csv(number, mode, landmark_list, point_history_list):
         with open(csv_path, 'a', newline="") as f:
             writer = csv.writer(f)
             writer.writerow([number, *landmark_list])
-    if mode == 2 and (0 <= number <= 9):
-        csv_path = 'model/point_history_classifier/point_history.csv'
-        with open(csv_path, 'a', newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow([number, *point_history_list])
     return
 
 
@@ -564,28 +528,12 @@ def draw_info_text(image, brect, handedness, hand_sign_text,
     cv.putText(image, info_text, (brect[0] + 5, brect[1] - 4),
                cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
 
-    # if finger_gesture_text != "":
-    #     cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
-    #                cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 4, cv.LINE_AA)
-    #     cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
-    #                cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2,
-    #                cv.LINE_AA)
-
-    return image
-
-
-def draw_point_history(image, point_history):
-    for index, point in enumerate(point_history):
-        if point[0] != 0 and point[1] != 0:
-            cv.circle(image, (point[0], point[1]), 1 + int(index / 2),
-                      (152, 251, 152), 2)
-
     return image
 
 
 def draw_info(image, fps, mode, number):
-    cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
-               1.0, (0, 0, 0), 4, cv.LINE_AA)
+    # cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
+    #         1.0, (0, 0, 0), 4, cv.LINE_AA)
     cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
                1.0, (255, 255, 255), 2, cv.LINE_AA)
 
@@ -600,6 +548,10 @@ def draw_info(image, fps, mode, number):
                        cv.LINE_AA)
     return image
 
+def main():
+    start_video()
+
 
 if __name__ == '__main__':
-    main()
+    for frame in start_video():
+        pass

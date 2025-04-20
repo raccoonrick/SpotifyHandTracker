@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HandTrack Spotify Controller</title>
+    <link rel="stylesheet" href="{{url_for('static', filename='stylesheets/index.css')}}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">
+                <span class="logo-icon">✋</span>
+                <span class="logo-text">HandTrack</span>
+                <span class="logo-spotify">+ Spotify Controller</span>
+            </div>
+            <div class="credentials-form">
+                <div class="input-group">
+                    <label>Client ID</label>
+                    <input type="text" class="input-field" placeholder="Enter Spotify Client ID">
+                </div>
+                <div class="input-group">
+                    <label>Client Secret</label>
+                    <input type="password" class="input-field" placeholder="Enter Client Secret">
+                </div>
+                <div class="input-group">
+                    <label>Redirect URI</label>
+                    <input type="text" class="input-field" placeholder="Enter Redirect URI">
+                </div>
+                <div class="credentials-error" style="color: red; margin-top: 10px;"></div>
+            </div>
+            <!-- <div class="credentials-help-icon" title="How to find Spotify Credentials">❓</div> -->
+        </div>
+        
+        <div class="main-section">
+            <div class="left-panel">
+                <h1>Hand Gesture Recognition</h1>
+                <p class="description">
+                    Control your Spotify playback with hand gestures.
+                </p>
+                
+                <div class="camera-view">
+                    <img id="camera-feed" src="{{url_for('static', filename='images/cam_icon.jpg')}}" alt="Camera View" class="camera-placeholder">
+                </div>
+                
+                <div class="action-buttons">
+                    <button id="start-tracking" class="btn btn-primary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M8 5V19L19 12L8 5Z" fill="white"/>
+                        </svg>
+                        Start Tracking
+                    </button>
+                    <!-- <button class="btn btn-secondary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 5v14M19 12H5"/>
+                        </svg>
+                        New Gesture
+                    </button> -->
+                </div>
+            </div>
+            
+            <div class="right-panel">
+                <div class="section-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    Recognized Gestures
+                </div>
+                
+                <div class="gesture-list">
+                    <div class="gesture-item">
+                        <div class="gesture-icon">☝️</div>
+                        <div class="gesture-info">
+                            <div class="gesture-name">Point</div>
+                            <div class="gesture-action">Play/Pause</div>
+                        </div>
+                    </div>
+                    <div class="gesture-item">
+                        <div class="gesture-icon">🤚</div>
+                        <div class="gesture-info">
+                            <div class="gesture-name">Open Palm</div>
+                            <div class="gesture-action">Volume Up</div>
+                        </div>
+                    </div>
+                    <div class="gesture-item">
+                        <div class="gesture-icon">✊</div>
+                        <div class="gesture-info">
+                            <div class="gesture-name">Fist</div>
+                            <div class="gesture-action">Volume Down</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <div class="section-title">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                        Settings
+                    </div>
+                    
+                    <!-- <div class="settings-row">
+                        <div class="settings-label">Static Image Mode</div>
+                        <label class="switch">
+                            <input type="checkbox">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-label">Show Bounding Box</div>
+                        <label class="switch">
+                            <input type="checkbox" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-label">Show FPS</div>
+                        <label class="switch">
+                            <input type="checkbox" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div> -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spotify Credentials Help Modal -->
+    <div id="credentials-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2 class="pop-up">How to Find Spotify API Credentials</h2><br>
+            <div class="modal-section ">
+                <h3>1. Create a Spotify Developer Account</h3>
+                <p class="pop-up">Go to the <a href="https://developer.spotify.com/dashboard/" target="_blank">Spotify Developer Dashboard</a> and log in or create an account.</p>
+            </div>
+            <div class="modal-section">
+                <h3>2. Create a New App</h3>
+                <p class="pop-up">Click "Create an App" and give it a name and description.</p>
+            </div>
+            <div class="modal-section">
+                <h3>3. Find Client ID and Client Secret</h3>
+                <p class="pop-up">On your app's dashboard, you'll find the Client ID. Click "Show Client Secret" to reveal the Client Secret.</p>
+            </div>
+            <div class="modal-section">
+                <h3>4. Set Redirect URI</h3>
+                <p class="pop-up">In your app settings, go to "Edit Settings" and add a Redirect URI. For local development, use: <code>http://localhost:8888/callback</code></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const startTrackingBtn = document.getElementById('start-tracking');
+            const cameraFeed = document.getElementById('camera-feed');
+            const clientIdInput = document.querySelector('.credentials-form input[placeholder="Enter Spotify Client ID"]');
+            const clientSecretInput = document.querySelector('.credentials-form input[placeholder="Enter Client Secret"]');
+            const redirectUriInput = document.querySelector('.credentials-form input[placeholder="Enter Redirect URI"]');
+            const credentialsErrorDiv = document.querySelector('.credentials-error');
+            let isTracking = false;
+
+            startTrackingBtn.addEventListener('click', function() {
+
+                // Check if all credentials are filled
+                const clientId = clientIdInput.value.trim();
+                const clientSecret = clientSecretInput.value.trim();
+                const redirectUri = redirectUriInput.value.trim();
+
+                if (!clientId || !clientSecret || !redirectUri) {
+                    alert('Please enter all Spotify API credentials.');
+                    return;
+                }
+
+                isTracking = !isTracking;
+
+                if (isTracking) {
+                    // First validate credentials
+                    fetch('/validate_credentials', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            client_id: clientId,
+                            client_secret: clientSecret,
+                            redirect_uri: redirectUri
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.valid) {
+                            throw new Error(data.error || data.message);
+                        }
+
+                        // If validation succeeds, set credentials
+                        return fetch('/set_credentials', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                client_id: clientId,
+                                client_secret: clientSecret,
+                                redirect_uri: redirectUri
+                            })
+                        });
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.valid) {
+                            throw new Error(data.error || data.message);
+                        }
+
+                        // Update UI for tracking
+                        startTrackingBtn.innerHTML = `
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="6" y="4" width="4" height="16" fill="white"/>
+                                <rect x="14" y="4" width="4" height="16" fill="white"/>
+                            </svg>
+                            Stop Tracking
+                        `;
+                        startTrackingBtn.classList.remove('btn-primary');
+                        startTrackingBtn.classList.add('btn-danger');
+                        cameraFeed.src = "{{ url_for('video_feed') }}";
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert(error.message || 'Failed to set Spotify credentials.');
+                        isTracking = false;
+                        startTrackingBtn.classList.remove('btn-danger');
+                        startTrackingBtn.classList.add('btn-primary');
+                        startTrackingBtn.innerHTML = `
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 5V19L19 12L8 5Z" fill="white"/>
+                            </svg>
+                            Start Tracking
+                        `;
+                    });
+                } else {
+                    // Stop tracking
+                    startTrackingBtn.innerHTML = `
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M8 5V19L19 12L8 5Z" fill="white"/>
+                        </svg>
+                        Start Tracking
+                    `;
+                    startTrackingBtn.classList.remove('btn-danger');
+                    startTrackingBtn.classList.add('btn-primary');
+                    cameraFeed.src = "{{url_for('static', filename='images/cam_icon.jpg')}}";
+                }
+            });
+
+            // Credentials Modal Logic
+            const credentialsForm = document.querySelector('.credentials-form');
+            const credentialsModal = document.getElementById('credentials-modal');
+            const closeModalBtn = document.querySelector('.close-modal');
+
+            // Add help icon to credentials form
+            const helpIcon = document.createElement('div');
+            helpIcon.innerHTML = '?'; // ❓
+            helpIcon.classList.add('credentials-help-icon');
+            helpIcon.title = 'How to find Spotify Credentials';
+            helpIcon.addEventListener('click', () => {
+                credentialsModal.style.display = 'block';
+            });
+            credentialsForm.appendChild(helpIcon);
+
+            // Close modal when clicking the close button
+            closeModalBtn.addEventListener('click', () => {
+                credentialsModal.style.display = 'none';
+            });
+
+            // Close modal when clicking outside of it
+            window.addEventListener('click', (event) => {
+                if (event.target === credentialsModal) {
+                    credentialsModal.style.display = 'none';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
