@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import os
+from turtle import right
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 os.environ['GLOG_minloglevel'] = '2'
@@ -14,6 +15,9 @@ import contextlib
 import cv2 as cv
 import numpy as np
 import mediapipe as mp
+
+import collections
+import math
 
 
 from spotify_functions import connect_spotify, current_song, change_playback, change_volume
@@ -57,6 +61,12 @@ def start_video(spotify_credentials=None):
     cap_device = 0
     cap_width = 960
     cap_height = 540
+
+    # Store history
+    position_history = collections.deque(maxlen=10)
+    swipe_threshold = 100 # Min distance
+    swipe_cooldown = 2 # 2 seconds cooldown
+    last_swipe_time = 0
 
     # Set up Spotify with Spotipy (with error handling)
     sp = None
@@ -106,7 +116,7 @@ def start_video(spotify_credentials=None):
         mp_hands = mp.solutions.hands
         hands = mp_hands.Hands(
             static_image_mode=use_static_image_mode,
-            max_num_hands=2,
+            max_num_hands=1, # Only track one hand
             min_detection_confidence=min_detection_confidence,
             min_tracking_confidence=min_tracking_confidence,
         )
@@ -169,6 +179,19 @@ def start_video(spotify_credentials=None):
                     # Landmark calculation
                     landmark_list = calc_landmark_list(debug_image, hand_landmarks)
 
+                    wrist_x = landmark_list[0][0]
+                    wrist_y = landmark_list[0][1]
+
+                    # Swipe only with right hand
+                    right_hand = handedness.classification[0].label[0] == 'R'
+
+                    # Static gestures with left hand
+                    left_hand = handedness.classification[0].label[0] == 'L'
+
+                    position_history.append((wrist_x, wrist_y, current_time))
+
+                    
+
                     # Conversion to relative coordinates / normalized coordinates
                     pre_processed_landmark_list = pre_process_landmark(
                         landmark_list)
@@ -185,8 +208,36 @@ def start_video(spotify_credentials=None):
                         gesture_hold = 0
                         prev_gesture = hand_sign_id
 
+                    # Detect swipe gestures if we have enough history
+                    if right_hand and len(position_history) >= 5 and current_time - last_swipe_time > swipe_cooldown:
+                        swipe_detected = detect_swipe(position_history, swipe_threshold)
+
+                        if swipe_detected and hand_sign_id == 2:
+                            if swipe_detected == "left":
+                                print("Swipe Left detected")
+
+                                # Add Spotify action for swipe left (e.g., previous track)
+                                if sp is not None:
+                                    try:
+                                        sp.previous_track()
+                                        print("Playing previous track")
+                                    except Exception as e:
+                                        print(f"Previous track error: {e}")
+                            elif swipe_detected == "right":
+                                print("Swipe Right detected")
+                                # Add Spotify action for swipe right (e.g., next track)
+                                if sp is not None:
+                                    try:
+                                        sp.next_track()
+                                        print("Playing next track")
+                                    except Exception as e:
+                                        print(f"Next track error: {e}")
+                            
+                            last_swipe_time = current_time
+                            position_history.clear()  # Clear history after a swipe
+
                     # Register gestures if held for 3+ frames
-                    if current_time - last_pause_time > pause_cooldown and gesture_hold > 12:
+                    if left_hand and current_time - last_pause_time > pause_cooldown and gesture_hold > 12:
                         # Only attempt Spotify actions if connection was successful
                         if sp is not None:
                             # Increase Volume if Open hand
@@ -218,6 +269,9 @@ def start_video(spotify_credentials=None):
                         keypoint_classifier_labels[hand_sign_id],
                         "",
                     )
+            else:
+                # Clear position history when no hands are detected
+                position_history.clear()
 
             debug_image = draw_info(debug_image, fps, mode, number)
 
@@ -547,6 +601,37 @@ def draw_info(image, fps, mode, number):
                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
                        cv.LINE_AA)
     return image
+
+def detect_swipe(position_history, threshold):
+
+    if len(position_history) < 5:
+        return None
+
+    # Get pos oldest to newest
+    positions = list(position_history)
+
+    start_x = positions[0][0]
+    end_x = positions[-1][0]
+    movement_x = end_x - start_x
+
+    time_elapsed = positions[-1][-2] - positions[0][2]
+    # Must be within reasonable time
+    if time_elapsed > 0.5:
+        return None
+
+    start_y = positions[0][1]
+    end_y = positions[-1][1]
+    movement_y = abs(end_y - start_y)
+
+    # Check if vert. movement is too much
+    if movement_y > abs(movement_x) * 0.7:
+        return None
+
+    if movement_x < -threshold:
+        return "left"
+    elif movement_x > threshold:
+        return "right"
+    return None
 
 def main():
     start_video()
