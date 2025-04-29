@@ -17,10 +17,9 @@ import numpy as np
 import mediapipe as mp
 
 import collections
-import math
 
 
-from spotify_functions import connect_spotify, current_song, change_playback, change_volume
+from spotify_functions import connect_spotify, change_playback, change_volume
 
 from dotenv import load_dotenv
 

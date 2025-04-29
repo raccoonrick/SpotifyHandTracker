@@ -80,7 +80,7 @@ def connect_spotify(SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET, SPOTIPY_REDIRECT_U
     
     return sp
 
-def current_song(sp):
+def now_playing(sp):
     if sp is None:
         raise ValueError("Spotify connection not established")
     
@@ -89,13 +89,18 @@ def current_song(sp):
         raise ValueError("No active playback")
     
     song_dict = current_playback['item']
-    song = song_dict['name']
+    is_playing = current_playback['is_playing']
+    album_art = song_dict['album']['images'][0]['url']
+    track_name = str(song_dict['name'])
     artists = song_dict['artists']
     artist_names = list()
     for artist in artists:
         artist_names.append(artist['name'])
     artist_names = ', '.join(artist_names)
-    return song, artist_names
+    progress_ms = current_playback['progress_ms']
+    duration_ms = current_playback['item']['duration_ms']
+
+    return is_playing, track_name, artist_names, album_art, progress_ms, duration_ms
 
 def change_playback(sp):
     if sp is None:
@@ -137,24 +142,18 @@ def change_volume(sp, direction):
         return "Currently not playing music..."
 
 def main():
-    isValid, message = validate_spotify_credentials(SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET, SPOTIPY_REDIRECT_URI)
-    print(isValid, message)
+    credentials = {
+        'client_id': SPOTIPY_CLIENT_ID,
+        'client_secret': SPOTIPY_CLIENT_SECRET,
+        'redirect_uri': SPOTIPY_REDIRECT_URI
+    }
     
-    sp = connect_spotify(SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET, SPOTIPY_REDIRECT_URI, SCOPE)
-    print(sp)
-
-    # if sp is not None:
-    #     song, artist_names = current_song(sp)
-
-    #     print(f'Current Song: {song} \nBy: {artist_names}')
-
-    #     # song_status = change_playback(sp)
-
-    #     # print(song_status)
-    #     device = change_volume(sp,1)
-    #     # change_volume(sp,1)
-
-    #     print(device)
+    isValid, message = validate_spotify_credentials(credentials['client_id'], credentials['client_secret'], credentials['redirect_uri'])
+    # print(isValid, message)
+    
+    sp = connect_spotify(credentials['client_id'], credentials['client_secret'], credentials['redirect_uri'], SCOPE)
+    is_playing, track_name, artist_names, album_art, progress_ms, duration_ms = now_playing(sp)
+    print(is_playing, track_name, artist_names, album_art, progress_ms, duration_ms)
 
 if __name__ == '__main__':
     main()
