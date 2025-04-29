@@ -149,31 +149,5 @@ def handle_connect():
 def handle_disconnect():
     print('Client disconnected')
 
-@socketio.on('gesture')
-def handle_gesture(data):
-    print(f'Gesture received: {data}')
-    
-    # Map gestures to Spotify actions
-    try:
-        hand = data.get('hand', '')
-        gesture = data.get('gesture', '')
-        
-        if hand == 'left':
-            if gesture == 'point':
-                spotify_functions.play_pause()
-            elif gesture == 'open_palm':
-                spotify_functions.volume_up()
-            elif gesture == 'fist':
-                spotify_functions.volume_down()
-        
-        elif hand == 'right':
-            if gesture == 'index_up_left':
-                spotify_functions.next_track()
-            elif gesture == 'index_up_right':
-                spotify_functions.previous_track()
-        
-    except Exception as e:
-        print(f"Error processing gesture: {e}")
-
 if __name__ == '__main__':
     app_flask.run(debug=True)

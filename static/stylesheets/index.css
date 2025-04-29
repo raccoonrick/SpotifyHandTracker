@@ -299,6 +299,7 @@ h1 {
     align-items: center;
     /* gap: 15px; */
     margin-bottom: 10px;
+    width: 75%;
 }
 
 .album-art {

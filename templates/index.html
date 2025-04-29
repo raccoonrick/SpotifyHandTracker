@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HandTrack Spotify Controller</title>
     <link rel="stylesheet" href="{{url_for('static', filename='stylesheets/index.css')}}">
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
     <!-- <script src="https://cdn.tailwindcss.com"></script> -->
 </head>
 <body>
@@ -128,7 +129,7 @@
                         </div>
                     </div>
                     <div class="gesture-item">
-                        <div class="gesture-icon">✌️</div>
+                        <div class="gesture-icon">☝️</div>
                         <div class="gesture-info">
                             <div class="gesture-name">Index Up (Swipe Right)</div>
                             <div class="gesture-action">Previous Track</div>
@@ -357,7 +358,7 @@
                         cameraFeed.src = "{{ url_for('video_feed') }}";
 
                         // Start updating now playing
-                        nowPlayingInterval = setInterval(updateNowPlaying, 5000);
+                        nowPlayingInterval = setInterval(updateNowPlaying, 3000);
                         startProgressTracking();
                         // Initial update
                         updateNowPlaying();
