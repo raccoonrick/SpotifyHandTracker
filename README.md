@@ -19,7 +19,7 @@ Control Spotify using hand gestures via webcam and computer vision.
 
 ## 📎 Prerequisites
 - Python 3.9+
-- Spotify Developer account (get API key from [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+- Spotify Developer account (get API key from [Spotify Developer Dashboard](https://developer.spotify.com/dashboard))
 
 ## 🛠️ Installation
 
